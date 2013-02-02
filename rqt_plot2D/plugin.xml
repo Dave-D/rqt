@@ -1,0 +1,20 @@
+<library path="src">
+  <class name="Plot2D" type="rqt_plot2D.plot2D.Plot2D" base_class_type="rqt_gui_py::Plugin">
+    <description>
+      Plot topics in a 2D plot.
+    </description>
+    <qtgui>
+      <!-- optional grouping...
+      <group>
+        <label>Group</label>
+      </group>
+      <group>
+        <label>Subgroup</label>
+      </group>
+      -->
+      <label>Plot2D</label>
+      <icon type="theme">utilities-system-monitor</icon>
+      <statustip>Plot topics in a 2D plot.</statustip>
+    </qtgui>
+  </class>
+</library>
