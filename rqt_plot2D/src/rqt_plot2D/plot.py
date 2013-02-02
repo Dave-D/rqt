@@ -31,7 +31,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 import roslib
-roslib.load_manifest('rqt_plot2D')
+roslib.load_manifest('rqt_plot')
 
 from python_qt_binding import QT_BINDING
 from python_qt_binding.QtCore import qDebug
@@ -41,28 +41,28 @@ from rqt_gui_py.plugin import Plugin
 from .plot_widget import PlotWidget
 
 try:
-    qDebug('rqt_plot2D.plot: importing PyQtGraphDataPlot')
+    qDebug('rqt_plot.plot: importing PyQtGraphDataPlot')
     from pyqtgraph_data_plot import PyQtGraphDataPlot
 except ImportError:
-    qDebug('rqt_plot2D.plot: import of PyQtGraphDataPlot failed')
+    qDebug('rqt_plot.plot: import of PyQtGraphDataPlot failed')
     PyQtGraphDataPlot = None
 
 try:
-    qDebug('rqt_plot2D.plot: importing MatDataPlot')
+    qDebug('rqt_plot.plot: importing MatDataPlot')
     from mat_data_plot import MatDataPlot
 except ImportError:
-    qDebug('rqt_plot2D.plot: import of MatDataPlot failed')
+    qDebug('rqt_plot.plot: import of MatDataPlot failed')
     MatDataPlot = None
 
 try:
-    qDebug('rqt_plot2D.plot: importing QwtDataPlot')
+    qDebug('rqt_plot.plot: importing QwtDataPlot')
     from qwt_data_plot import QwtDataPlot
 except ImportError:
-    qDebug('rqt_plot2D.plot: import of QwtDataPlot failed')
+    qDebug('rqt_plot.plot: import of QwtDataPlot failed')
     QwtDataPlot = None
 
 
-class Plot2D(Plugin):
+class Plot(Plugin):
     # plot types in order of priority
     plot_types = [
         {
@@ -86,8 +86,8 @@ class Plot2D(Plugin):
     ]
 
     def __init__(self, context):
-        super(Plot2D, self).__init__(context)
-        self.setObjectName('Plot2D')
+        super(Plot, self).__init__(context)
+        self.setObjectName('Plot')
 
         enabled_plot_types = [pt for pt in self.plot_types if pt['enabled']]
         if not enabled_plot_types:
@@ -137,7 +137,7 @@ class Plot2D(Plugin):
                     c_topics.append(sub_t)
             # #1053: resolve command-line topic names
             import rosgraph
-            c_topics = [rosgraph.names.script_resolve_name('rqt_plot2D', n) for n in c_topics]
+            c_topics = [rosgraph.names.script_resolve_name('rqt_plot', n) for n in c_topics]
             if type(c_topics) == list:
                 topic_list.extend(c_topics)
             else:

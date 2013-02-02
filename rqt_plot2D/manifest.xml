@@ -1,5 +1,5 @@
 <package>
-  <description brief="rqt_plot2D">
+  <description brief="Plot two topics as a 2D plot">
 
      rqt_plot2D
 
@@ -11,6 +11,12 @@
   <depend package="rospy"/>
   <depend package="rqt_gui"/>
   <depend package="rqt_gui_py"/>
+  <depend package="rqt_py_common"/>
+  <depend package="qt_gui_py_common"/>
+  <depend package="rostopic"/>
+  <depend package="rosgraph"/>
+  <rosdep name="python-qt-bindings-qwt5"/>
+  <rosdep name="python-matplotlib"/>
   
   <export>
     <rqt_gui plugin="${prefix}/plugin.xml"/>
