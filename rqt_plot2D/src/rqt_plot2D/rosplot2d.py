@@ -64,7 +64,7 @@ def _get_topic_type(topic):
         master = rosgraph.Master('/rosplot')
         val = master.getPublishedTopics('/')
     except:
-        raise RosPlotException("unable to get list of topics from master")
+        raise RosPlot2dException("unable to get list of topics from master")
     matches = [(t, t_type) for t, t_type in val if t == topic or topic.startswith(t + '/')]
     if matches:
         t, t_type = matches[0]
@@ -103,25 +103,37 @@ class ROSData2d(object):
     Subscriber to ROS topic that buffers incoming data
     """
 
-    def __init__(self, topic, start_time):
-        self.name = topic
+    def __init__(self, topicX, topicY, start_time):
+        self.name = topicY + ' vs ' + topicX 
         self.start_time = start_time
         self.error = None
 
         self.lock = threading.Lock()
         self.buff_x = []
         self.buff_y = []
+        self.buff_t = []
 
-        topic_type, real_topic, fields = get_topic_type(topic)
-        self.field_evals = generate_field_evals(fields)
-        data_class = roslib.message.get_message_class(topic_type)
-        self.subA = rospy.Subscriber(real_topic, data_class, self._ros_cbA)
-        self.subB = rospy.Subscriber(real_topic, data_class, self._ros_cbB)
+        self.last_x = 0
+        self.last_y = 0
+        self.last_t = start_time
+        
+        self._bEmptyX = True
+        self._bEmptyY = True
+
+        topic_typeX, real_topicX, fieldsX = get_topic_type(topicX)
+        self.field_evalsX = generate_field_evals(fieldsX)
+        data_classX = roslib.message.get_message_class(topic_typeX)
+        self.subX = rospy.Subscriber(real_topicX, data_classX, self._ros_cbX)
+        topic_typeY, real_topicY, fieldsY = get_topic_type(topicY)
+        self.field_evalsY = generate_field_evals(fieldsY)
+        data_classY = roslib.message.get_message_class(topic_typeY)
+        self.subY = rospy.Subscriber(real_topicY, data_classY, self._ros_cbY)
 
     def close(self):
-        self.sub.unregister()
+        self.subX.unregister()
+        self.subY.unregister()
 
-    def _ros_cb(self, msg):
+    def _ros_cb(self, msg, channel):
         """
         ROS subscriber callback
         :param msg: ROS message data
@@ -129,48 +141,88 @@ class ROSData2d(object):
         try:
             self.lock.acquire()
             try:
-                self.buff_y.append(self._get_data(msg))
+                if (not self._bEmptyX and not self._bEmptyY):
+                    # record the starting point only if all three coordinates are valid
+                    self.buff_x.append(self.last_x)
+                    self.buff_y.append(self.last_y)
+                    self.buff_t.append(self.last_t)
+                
+                if (channel == 'X'):
+                    self.last_x = self._get_data(msg,channel)
+                    self._bEmptyX = False
+                elif (channel == 'Y'):
+                    self.last_y = self._get_data(msg,channel)
+                    self._bEmptyY = False
+                    
                 # #944: use message header time if present
                 if msg.__class__._has_header:
-                    self.buff_x.append(msg.header.stamp.to_sec() - self.start_time)
+                    self.last_t = (msg.header.stamp.to_sec() - self.start_time)
                 else:
-                    self.buff_x.append(rospy.get_time() - self.start_time)
-                #self.axes[index].plot(datax, buff_y)
+                    self.last_t = (rospy.get_time() - self.start_time)
+
+                if (not self._bEmptyX and not self._bEmptyY):
+                    # record the change
+                    self.buff_x.append(self.last_x)
+                    self.buff_y.append(self.last_y)
+                    self.buff_t.append(self.last_t)
+                    
             except AttributeError, e:
-                self.error = RosPlotException("Invalid topic spec [%s]: %s" % (self.name, str(e)))
+                self.error = RosPlot2dException("Invalid topic spec [%s]: %s" % (self.name, str(e)))
         finally:
             self.lock.release()
-
+            
+    def _ros_cbX(self, msg):
+        """
+        ROS subscriber callback
+        :param msg: ROS message data
+        """
+        self._ros_cb(msg,'X')
+                    
+    def _ros_cbY(self, msg):
+        """
+        ROS subscriber callback
+        :param msg: ROS message data
+        """
+        self._ros_cb(msg,'Y')
+        
     def next(self):
         """
         Get the next data in the series
 
-        :returns: [xdata], [ydata]
+        :returns: [xdata], [ydata], [tdata]
         """
         if self.error:
             raise self.error
         try:
             self.lock.acquire()
-            buff_x = self.buff_x
-            buff_y = self.buff_y
+            buffer_x = self.buff_x
+            buffer_y = self.buff_y
+            buffer_t = self.buff_t
             self.buff_x = []
             self.buff_y = []
+            self.buff_t = []
         finally:
             self.lock.release()
-        return buff_x, buff_y
+        return buffer_x, buffer_y, buffer_t
 
-    def _get_data(self, msg):
+    def _get_data(self, msg, channel):
         val = msg
+        if (channel == 'X'):
+            field_evals = self.field_evalsX
+        elif (channel == 'Y'):
+            field_evals = self.field_evalsY
+        else:
+            field_evals = False
         try:
-            if not self.field_evals:
+            if not field_evals:
                 return float(val)
-            for f in self.field_evals:
+            for f in field_evals:
                 val = f(val)
             return float(val)
         except IndexError:
-            self.error = RosPlotException("[%s] index error for: %s" % (self.name, str(val).replace('\n', ', ')))
+            self.error = RosPlot2dException("[%s] index error for: %s" % (self.name, str(val).replace('\n', ', ')))
         except TypeError:
-            self.error = RosPlotException("[%s] value was not numeric: %s" % (self.name, val))
+            self.error = RosPlot2dException("[%s] value was not numeric: %s" % (self.name, val))
 
 
 def _array_eval(field_name, slot_num):
@@ -207,4 +259,4 @@ def generate_field_evals(fields):
                 evals.append(_field_eval(f))
         return evals
     except Exception, e:
-        raise RosPlotException("cannot parse field reference [%s]: %s" % (fields, str(e)))
+        raise RosPlot2dException("cannot parse field reference [%s]: %s" % (fields, str(e)))

@@ -113,7 +113,7 @@ class Plot2dWidget(QWidget):
             self._initial_topics = None
         else:
             for topic_name, rosdata in self._rosdata.items():
-                data_x, data_y = rosdata.next()
+                data_x, data_y, data_t = rosdata.next()
                 self.data_plot.add_curve(topic_name, topic_name, data_x, data_y)
 
         self._subscribed_topics_changed()
@@ -160,23 +160,15 @@ class Plot2dWidget(QWidget):
         self.clean_up_subscribers()
 
     def update_plot(self):
-        if self.data_plot is not None:
-	  if (1 == self.nTopicCounter):
-	    data_x, data_y = self._rosdata[self.topicNames[0]].next()
-	    self.data_plot.update_values(self.topicNames[0], data_x, data_y)
-	  elif (2 == self.nTopicCounter):
-	    data_t, data_x = self._rosdata[self.topicNames[0]].next()
-	    data_t, data_y = self._rosdata[self.topicNames[1]].next()
-	    if(len(data_x) != len(data_y)):
-	      print 'data length X: ' + str(len(data_x)) + ' data length Y: ' + str(len(data_y))
-	      data_x = []
-	      data_y = []
-	    self.data_plot.update_values(self.topicNames[1], data_x, data_y)
-	    pass
-	  else:
-	    pass	  
-	  self.data_plot.redraw()
-
+        for topic_name, rosdata in self._rosdata.items():
+            try:
+                data_x, data_y, data_t = rosdata.next()
+                self.data_plot.update_values(topic_name, data_x, data_y)
+            except RosPlot2dException as e:
+                qWarning('PlotWidget.update_plot(): error in rosplot: %s' % e)
+        self.data_plot.redraw()
+        return
+    
     def _subscribed_topics_changed(self):
         self._update_remove_topic_menu()
         if self._arguments:
@@ -199,38 +191,15 @@ class Plot2dWidget(QWidget):
         self.remove_topic_button.setMenu(self._remove_topic_menu)
 
     def add_topic(self, topic_name):
-        return  
-        # Hack away!
-        if (0 == self.nTopicCounter):
-            # first subscribe
-            self.nTopicCounter = 1
+        if topic_name in self._rosdata:
+            qWarning('PlotWidget.add_topic(): topic already subscribed: %s' % topic_name)
+        else:
             self.topicNames.append(topic_name)
-            self._rosdata[topic_name] = ROSData(topic_name, self._start_time)
-            data_x, data_y = self._rosdata[topic_name].next()
+            self._rosdata[topic_name] = ROSData2d(str(self.topicEditA.text()), str(self.topicEditB.text()), self._start_time)
+            data_x, data_y, data_t = self._rosdata[topic_name].next()
             self.data_plot.add_curve(topic_name, topic_name, data_x, data_y)
             self._subscribed_topics_changed()
-        elif (1 == self.nTopicCounter):
-            # second subscribe
-            self.nTopicCounter = 2
-            self.topicNames.append(topic_name)
-          
-            # unsubscribe first topic
-            self.data_plot.remove_curve(self.topicNames[0])
-            # subscribe for both
-            self._rosdata[topic_name] = ROSData(topic_name, self._start_time)
-            data_t, data_y = self._rosdata[topic_name].next()
-            data_t, data_x = self._rosdata[self.topicNames[0]].next()
-          
-            if(len(data_x) != len(data_y)):
-                print 'data length X: ' + str(len(data_x)) + ' data length Y: ' + str(len(data_y))
-                data_x = []
-                data_y = []
-                self.data_plot.add_curve(topic_name, topic_name, data_x, data_y)
-                self._subscribed_topics_changed()
-            else:
-                # more are not allowed
-                pass
-
+            return  
 
     def remove_topic(self, topic_name):
         self._rosdata[topic_name].close()
