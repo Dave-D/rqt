@@ -45,7 +45,7 @@ from python_qt_binding.QtCore import qDebug
 from qt_gui_py_common.simple_settings_dialog import SimpleSettingsDialog
 from rqt_gui_py.plugin import Plugin
 
-from .plot_widget import PlotWidget
+from .plot2D_widget import Plot2dWidget
 
 try:
     qDebug('rqt_plot2D.plot: importing PyQtGraphDataPlot')
@@ -105,7 +105,7 @@ class Plot2D(Plugin):
         self._context = context
 
         args, topics = self._process_arguments(context.argv())
-        self._widget = PlotWidget(args, topics)
+        self._widget = Plot2dWidget(args, topics)
         if context.serial_number() > 1:
             self._widget.setWindowTitle(self._widget.windowTitle() + (' (%d)' % context.serial_number()))
         context.add_widget(self._widget)

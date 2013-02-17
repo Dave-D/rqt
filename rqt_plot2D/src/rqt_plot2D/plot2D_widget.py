@@ -50,15 +50,15 @@ import rospy
 from rqt_py_common.topic_completer import TopicCompleter
 from rqt_py_common.topic_helpers import is_slot_numeric
 
-from . rosplot import ROSData, RosPlotException
+from .rosplot2d import ROSData2d, RosPlot2dException
 
 
-class PlotWidget(QWidget):
+class Plot2dWidget(QWidget):
     _redraw_interval = 40
 
     def __init__(self, arguments=None, initial_topics=None):
-        super(PlotWidget, self).__init__()
-        self.setObjectName('PlotWidget')
+        super(Plot2dWidget, self).__init__()
+        self.setObjectName('Plot2dWidget')
 
         ui_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'plot2D.ui')
         loadUi(ui_file, self)
@@ -69,12 +69,17 @@ class PlotWidget(QWidget):
         self.data_plot = None
         self.nTopicCounter = 0
         self.topicNames = []
+        self.bTopicValidA = False
+        self.bTopicValidB = False
 
         self.subscribe_topic_button.setEnabled(False)
 
-        self._topic_completer = TopicCompleter(self.topic_edit)
-        self._topic_completer.update_topics()
-        self.topic_edit.setCompleter(self._topic_completer)
+        self._topic_completerA = TopicCompleter(self.topicEditA)
+        self._topic_completerB = TopicCompleter(self.topicEditB)
+        self._topic_completerA.update_topics()
+        self._topic_completerB.update_topics()
+        self.topicEditA.setCompleter(self._topic_completerA)
+        self.topicEditB.setCompleter(self._topic_completerB)
 
         self._start_time = rospy.get_time()
         self._rosdata = {}
@@ -113,50 +118,38 @@ class PlotWidget(QWidget):
 
         self._subscribed_topics_changed()
 
-    @Slot('QDragEnterEvent*')
-    def dragEnterEvent(self, event):
-        # get topic name
-        if not event.mimeData().hasText():
-            if not hasattr(event.source(), 'selectedItems') or len(event.source().selectedItems()) == 0:
-                qWarning('Plot.dragEnterEvent(): not hasattr(event.source(), selectedItems) or len(event.source().selectedItems()) == 0')
-                return
-            item = event.source().selectedItems()[0]
-            topic_name = item.data(0, Qt.UserRole)
-            if topic_name == None:
-                qWarning('Plot.dragEnterEvent(): not hasattr(item, ros_topic_name_)')
-                return
-        else:
-            topic_name = str(event.mimeData().text())
-
-        # check for numeric field type
-        is_numeric, is_array, message = is_slot_numeric(topic_name)
-        if is_numeric and not is_array:
-            event.acceptProposedAction()
-        else:
-            qWarning('Plot.dragEnterEvent(): rejecting: "%s"' % (message))
-
-    @Slot('QDropEvent*')
-    def dropEvent(self, event):
-        if event.mimeData().hasText():
-            topic_name = str(event.mimeData().text())
-        else:
-            droped_item = event.source().selectedItems()[0]
-            topic_name = str(droped_item.data(0, Qt.UserRole))
-        self.add_topic(topic_name)
-
     @Slot(str)
-    def on_topic_edit_textChanged(self, topic_name):
+    def on_topicEditA_textChanged(self, topic_name):
         # on empty topic name, update topics
         if topic_name in ('', '/'):
-            self._topic_completer.update_topics()
+            self._topic_completerA.update_topics()
 
         is_numeric, is_array, message = is_slot_numeric(topic_name)
-        self.subscribe_topic_button.setEnabled(is_numeric and not is_array)
+        self.bTopicValidA = (is_numeric and not is_array)
+        bSubscribeEnabled = (self.bTopicValidA and self.bTopicValidB)
+        if (self.bTopicValidA and not bSubscribeEnabled):
+            message = 'Please insert a valid topic to slot B'
+        self.subscribe_topic_button.setEnabled(bSubscribeEnabled)
+        self.subscribe_topic_button.setEnabled(bSubscribeEnabled)
         self.subscribe_topic_button.setToolTip(message)
 
+    @Slot(str)
+    def on_topicEditB_textChanged(self, topic_name):
+        # on empty topic name, update topics
+        if topic_name in ('', '/'):
+            self._topic_completerB.update_topics()
+
+        is_numeric, is_array, message = is_slot_numeric(topic_name)
+        self.bTopicValidB = (is_numeric and not is_array)
+        bSubscribeEnabled = (self.bTopicValidA and self.bTopicValidB)
+        if (self.bTopicValidB and not bSubscribeEnabled):
+            message = 'Please insert a valid topic to slot A'
+        self.subscribe_topic_button.setEnabled(bSubscribeEnabled)
+        self.subscribe_topic_button.setToolTip(message)
+        
     @Slot()
     def on_subscribe_topic_button_clicked(self):
-        self.add_topic(str(self.topic_edit.text()))
+        self.add_topic(str(self.topicEditB.text()) + ' vs ' + str(self.topicEditA.text()))
 
     @Slot(bool)
     def on_pause_button_clicked(self, checked):
@@ -206,40 +199,37 @@ class PlotWidget(QWidget):
         self.remove_topic_button.setMenu(self._remove_topic_menu)
 
     def add_topic(self, topic_name):
-      # Hack away!
-      if (0 == self.nTopicCounter):
-	# first subscribe
-	self.nTopicCounter = 1
-	self.topicNames.append(topic_name)
-	
-	self._rosdata[topic_name] = ROSData(topic_name, self._start_time)
-        data_x, data_y = self._rosdata[topic_name].next()
-        self.data_plot.add_curve(topic_name, topic_name, data_x, data_y)
-
-        self._subscribed_topics_changed()
-	
-      elif (1 == self.nTopicCounter):
-	# second subscribe
-	self.nTopicCounter = 2
-	self.topicNames.append(topic_name)
-	
-	# unsubscribe first topic
-        self.data_plot.remove_curve(self.topicNames[0])
-	
-	# subscribe for both
-	self._rosdata[topic_name] = ROSData(topic_name, self._start_time)
-        data_t, data_y = self._rosdata[topic_name].next()
-        data_t, data_x = self._rosdata[self.topicNames[0]].next()
-        if(len(data_x) != len(data_y)):
-	  print 'data length X: ' + str(len(data_x)) + ' data length Y: ' + str(len(data_y))
-	  data_x = []
-	  data_y = []
-        self.data_plot.add_curve(topic_name, topic_name, data_x, data_y)	
-	
-	self._subscribed_topics_changed()
-      else:
-	# more are not allowed
-	pass
+        return  
+        # Hack away!
+        if (0 == self.nTopicCounter):
+            # first subscribe
+            self.nTopicCounter = 1
+            self.topicNames.append(topic_name)
+            self._rosdata[topic_name] = ROSData(topic_name, self._start_time)
+            data_x, data_y = self._rosdata[topic_name].next()
+            self.data_plot.add_curve(topic_name, topic_name, data_x, data_y)
+            self._subscribed_topics_changed()
+        elif (1 == self.nTopicCounter):
+            # second subscribe
+            self.nTopicCounter = 2
+            self.topicNames.append(topic_name)
+          
+            # unsubscribe first topic
+            self.data_plot.remove_curve(self.topicNames[0])
+            # subscribe for both
+            self._rosdata[topic_name] = ROSData(topic_name, self._start_time)
+            data_t, data_y = self._rosdata[topic_name].next()
+            data_t, data_x = self._rosdata[self.topicNames[0]].next()
+          
+            if(len(data_x) != len(data_y)):
+                print 'data length X: ' + str(len(data_x)) + ' data length Y: ' + str(len(data_y))
+                data_x = []
+                data_y = []
+                self.data_plot.add_curve(topic_name, topic_name, data_x, data_y)
+                self._subscribed_topics_changed()
+            else:
+                # more are not allowed
+                pass
 
 
     def remove_topic(self, topic_name):
