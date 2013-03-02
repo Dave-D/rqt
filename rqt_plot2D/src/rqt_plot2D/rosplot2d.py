@@ -140,34 +140,33 @@ class ROSData2d(object):
         """
         try:
             self.lock.acquire()
-            try:
-                if (not self._bEmptyX and not self._bEmptyY):
-                    # record the starting point only if all three coordinates are valid
-                    self.buff_x.append(self.last_x)
-                    self.buff_y.append(self.last_y)
-                    self.buff_t.append(self.last_t)
+            if (not self._bEmptyX and not self._bEmptyY):
+                # record the starting point only if all three coordinates are valid
+                self.buff_x.append(self.last_x)
+                self.buff_y.append(self.last_y)
+                self.buff_t.append(self.last_t)
                 
-                if (channel == 'X'):
-                    self.last_x = self._get_data(msg,channel)
-                    self._bEmptyX = False
-                elif (channel == 'Y'):
-                    self.last_y = self._get_data(msg,channel)
-                    self._bEmptyY = False
+            if (channel == 'X'):
+                self.last_x = self._get_data(msg,channel)
+                self._bEmptyX = False
+            elif (channel == 'Y'):
+                self.last_y = self._get_data(msg,channel)
+                self._bEmptyY = False
                     
-                # #944: use message header time if present
-                if msg.__class__._has_header:
-                    self.last_t = (msg.header.stamp.to_sec() - self.start_time)
-                else:
-                    self.last_t = (rospy.get_time() - self.start_time)
+            # #944: use message header time if present
+            if msg.__class__._has_header:
+                self.last_t = (msg.header.stamp.to_sec() - self.start_time)
+            else:
+                self.last_t = (rospy.get_time() - self.start_time)
 
-                if (not self._bEmptyX and not self._bEmptyY):
-                    # record the change
-                    self.buff_x.append(self.last_x)
-                    self.buff_y.append(self.last_y)
-                    self.buff_t.append(self.last_t)
+            if (not self._bEmptyX and not self._bEmptyY):
+                # record the change
+                self.buff_x.append(self.last_x)
+                self.buff_y.append(self.last_y)
+                self.buff_t.append(self.last_t)
                     
-            except AttributeError, e:
-                self.error = RosPlot2dException("Invalid topic spec [%s]: %s" % (self.name, str(e)))
+        except AttributeError, e:
+            self.error = RosPlot2dException("Invalid topic spec [%s]: %s" % (self.name, str(e)))
         finally:
             self.lock.release()
             
